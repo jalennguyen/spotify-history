@@ -85,9 +85,11 @@ jobs:
         run: python scripts/fetch_history.py --limit 50 --save-supabase
 
       - name: Build dbt models
+        working-directory: spotify_history
         run: dbt run --select stg_spotify__plays fct_spotify__plays
 
       - name: Test dbt models
+        working-directory: spotify_history
         run: dbt test --select stg_spotify__plays fct_spotify__plays
 
 
