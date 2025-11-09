@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: spotify
+    schema: public
+    description: "Raw ingested data from Spotify listening history."
+    tables:
+      - name: raw_history
+        description: "JSON snapshots captured by the Python ingest workflow."
+        loaded_at_field: collected_at
+

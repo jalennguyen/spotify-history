@@ -20,6 +20,42 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Generate dbt profile
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import urllib.parse
+
+          url = os.environ.get("SUPABASE_DB_URL")
+          if not url:
+              raise SystemExit("SUPABASE_DB_URL secret is required for dbt profile generation.")
+
+          parsed = urllib.parse.urlparse(url)
+          query = dict(urllib.parse.parse_qsl(parsed.query))
+
+          profile = f"""spotify_history:
+    target: ci
+    outputs:
+      ci:
+        type: postgres
+        host: {parsed.hostname}
+        user: {urllib.parse.unquote(parsed.username or '')}
+        password: {urllib.parse.unquote(parsed.password or '')}
+        port: {parsed.port or 5432}
+        dbname: {parsed.path.lstrip('/') or 'postgres'}
+        schema: analytics
+        threads: 1
+        sslmode: {query.get('sslmode', 'require')}
+          """
+
+          dbt_dir = pathlib.Path.home() / ".dbt"
+          dbt_dir.mkdir(parents=True, exist_ok=True)
+          (dbt_dir / "profiles.yml").write_text(profile)
+          PY
+
       - name: Restore Spotify token cache
         env:
           SPOTIFY_CACHE_JSON: ${{ secrets.SPOTIFY_CACHE_JSON }}
@@ -38,5 +74,11 @@ jobs:
           SUPABASE_PLAYS_TABLE: ${{ secrets.SUPABASE_PLAYS_TABLE }}
           SUPABASE_RAW_TABLE: ${{ secrets.SUPABASE_RAW_TABLE }}
         run: python scripts/fetch_history.py --limit 50 --save-supabase
+
+      - name: Build dbt models
+        run: dbt run --select stg_spotify__plays fct_spotify__plays
+
+      - name: Test dbt models
+        run: dbt test --select stg_spotify__plays fct_spotify__plays
 
 

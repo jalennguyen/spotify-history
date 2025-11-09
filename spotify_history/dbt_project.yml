@@ -1,0 +1,35 @@
+
+# Name your project! Project names should contain only lowercase characters
+# and underscores. A good package name should reflect your organization's
+# name or the intended use of these models
+name: 'spotify_history'
+version: '1.0.0'
+
+# Which profile to use for this project.
+profile: 'spotify_history'
+
+# Project paths
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+# Directories to remove with `dbt clean`
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Model configurations
+models:
+  spotify_history:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +schema: staging
+      +materialized: incremental
+    marts:
+      +schema: analytics
+      +materialized: table

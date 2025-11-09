@@ -1,0 +1,59 @@
+version: 2
+
+models:
+  - name: stg_spotify__plays
+    description: "Incremental staging model that flattens Spotify raw history JSON into one row per play."
+    columns:
+      - name: played_at
+        description: "Timestamp when the play occurred."
+        tests:
+          - not_null
+          - unique
+      - name: track_id
+        description: "Spotify track identifier."
+        tests:
+          - not_null
+      - name: track_name
+        description: "Track title at the time of play."
+      - name: artist_names
+        description: "Comma-separated list of performing artists."
+      - name: album_name
+        description: "Album that the track belongs to."
+      - name: duration_ms
+        description: "Track duration in milliseconds."
+      - name: explicit
+        description: "Flag indicating whether the track is marked explicit."
+      - name: context_uri
+        description: "Spotify context (playlist/album/etc.) the play came from."
+      - name: ingested_at
+        description: "Timestamp when the raw payload snapshot was captured."
+
+  - name: fct_spotify__plays
+    description: "Fact table with cleaned plays ready for analytics."
+    columns:
+      - name: played_at
+        description: "Timestamp when the play occurred."
+        tests:
+          - not_null
+          - unique
+      - name: played_at_date
+        description: "Calendar date of the play."
+      - name: track_id
+        description: "Spotify track identifier."
+        tests:
+          - not_null
+      - name: track_name
+        description: "Track title."
+      - name: artist_names
+        description: "Comma-separated list of performing artists."
+      - name: album_name
+        description: "Album title."
+      - name: duration_ms
+        description: "Track duration in milliseconds."
+      - name: explicit
+        description: "Explicit flag."
+      - name: context_uri
+        description: "Playback context URI."
+      - name: ingested_at
+        description: "Timestamp when the raw payload snapshot was captured."
+

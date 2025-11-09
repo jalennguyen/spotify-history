@@ -69,4 +69,3 @@ The repository ships with `.github/workflows/ingest.yml`, which runs hourly and 
 2. The workflow installs dependencies, restores `.cache` if provided, and runs `python scripts/fetch_history.py --limit 50 --save-supabase`.
 
 If the cache secret is missing, Spotipy can’t refresh the token and the workflow will fail with an OAuth prompt. Update the secret whenever you regenerate the `.cache` file locally.
-
