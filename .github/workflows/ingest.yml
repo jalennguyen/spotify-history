@@ -34,8 +34,6 @@ jobs:
               raise SystemExit("SUPABASE_DB_URL secret is required for dbt profile generation.")
 
           parsed = urllib.parse.urlparse(url)
-          query = dict(urllib.parse.parse_qsl(parsed.query))
-
           profile = f"""spotify_history:
     target: ci
     outputs:
@@ -48,7 +46,6 @@ jobs:
         dbname: {parsed.path.lstrip('/') or 'postgres'}
         schema: analytics
         threads: 1
-        sslmode: {query.get('sslmode', 'require')}
           """
 
           dbt_dir = pathlib.Path.home() / ".dbt"
