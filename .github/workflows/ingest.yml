@@ -8,14 +8,6 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    env:
-      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-      SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
-      SPOTIFY_REDIRECT_URI: ${{ secrets.SPOTIFY_REDIRECT_URI }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_SCHEMA: ${{ secrets.SUPABASE_SCHEMA }}
-      SUPABASE_PLAYS_TABLE: ${{ secrets.SUPABASE_PLAYS_TABLE }}
-      SUPABASE_RAW_TABLE: ${{ secrets.SUPABASE_RAW_TABLE }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,11 +21,22 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore Spotify token cache
-        if: ${{ secrets.SPOTIFY_CACHE_JSON != '' }}
+        env:
+          SPOTIFY_CACHE_JSON: ${{ secrets.SPOTIFY_CACHE_JSON }}
         run: |
-          echo "${{ secrets.SPOTIFY_CACHE_JSON }}" > .cache
+          if [ -n "$SPOTIFY_CACHE_JSON" ]; then
+            echo "$SPOTIFY_CACHE_JSON" > .cache
+          fi
 
       - name: Fetch recent listening history
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          SPOTIFY_REDIRECT_URI: ${{ secrets.SPOTIFY_REDIRECT_URI }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_SCHEMA: ${{ secrets.SUPABASE_SCHEMA }}
+          SUPABASE_PLAYS_TABLE: ${{ secrets.SUPABASE_PLAYS_TABLE }}
+          SUPABASE_RAW_TABLE: ${{ secrets.SUPABASE_RAW_TABLE }}
         run: python scripts/fetch_history.py --limit 50 --save-supabase
 
 
