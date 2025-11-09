@@ -21,32 +21,44 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Generate dbt profile
+        shell: bash
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          python - <<'PY'
+          set -euo pipefail
+
+          if [[ -z "${SUPABASE_DB_URL:-}" ]]; then
+            echo "SUPABASE_DB_URL secret is required for dbt profile generation." >&2
+            exit 1
+          fi
+
+          mkdir -p ~/.dbt
+
+          python <<'PY'
           import os
           import pathlib
           import urllib.parse
+          import textwrap
 
-          url = os.environ.get("SUPABASE_DB_URL")
-          if not url:
-              raise SystemExit("SUPABASE_DB_URL secret is required for dbt profile generation.")
-
+          url = os.environ["SUPABASE_DB_URL"]
           parsed = urllib.parse.urlparse(url)
-          profile = f"""spotify_history:
-    target: ci
-    outputs:
-      ci:
-        type: postgres
-        host: {parsed.hostname}
-        user: {urllib.parse.unquote(parsed.username or '')}
-        password: {urllib.parse.unquote(parsed.password or '')}
-        port: {parsed.port or 5432}
-        dbname: {parsed.path.lstrip('/') or 'postgres'}
-        schema: analytics
-        threads: 1
-          """
+          query = dict(urllib.parse.parse_qsl(parsed.query or ""))
+
+          profile = textwrap.dedent(f"""
+          spotify_history:
+            target: ci
+            outputs:
+              ci:
+                type: postgres
+                host: {parsed.hostname}
+                user: {urllib.parse.unquote(parsed.username or "")}
+                password: {urllib.parse.unquote(parsed.password or "")}
+                port: {parsed.port or 5432}
+                dbname: {parsed.path.lstrip('/') or 'postgres'}
+                schema: analytics
+                threads: 1
+                sslmode: {query.get('sslmode', 'require')}
+          """).lstrip()
 
           dbt_dir = pathlib.Path.home() / ".dbt"
           dbt_dir.mkdir(parents=True, exist_ok=True)
