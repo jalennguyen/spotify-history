@@ -2,4 +2,5 @@ spotipy>=2.23.0
 python-dotenv>=1.0.0
 psycopg[binary]>=3.1
 pandas>=2.1
-dbt-postgres>=1.10,<1.11
+dbt-core==1.6.9
+dbt-postgres==1.6.9
