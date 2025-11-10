@@ -86,11 +86,11 @@ jobs:
 
       - name: Build dbt models
         working-directory: spotify_history
-        run: dbt run --select track_history recent_tracks
+        run: dbt run --select track_history
 
       - name: Test dbt models
         working-directory: spotify_history
-        run: dbt test --select track_history recent_tracks
+        run: dbt test --select track_history
 
       - name: Check dbt source freshness
         working-directory: spotify_history
