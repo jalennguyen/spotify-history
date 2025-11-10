@@ -92,4 +92,8 @@ jobs:
         working-directory: spotify_history
         run: dbt test --select stg_spotify__plays fct_spotify__plays
 
+      - name: Check dbt source freshness
+        working-directory: spotify_history
+        run: dbt source freshness --select source:spotify.raw_history
+
 

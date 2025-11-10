@@ -7,9 +7,6 @@ import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Iterable, List, Tuple
-
-import pandas as pd
 import psycopg
 from psycopg import sql
 
@@ -22,7 +19,6 @@ class SupabaseConfigError(RuntimeError):
 class SupabaseConfig:
     database_url: str
     schema: str
-    plays_table: str
     raw_table: str
 
 
@@ -36,78 +32,13 @@ def _require_env(name: str) -> str:
 def load_config() -> SupabaseConfig:
     """Load Supabase configuration from environment variables."""
     database_url = _require_env("SUPABASE_DB_URL")
-    schema = os.getenv("SUPABASE_SCHEMA", "public")
-    plays_table = os.getenv("SUPABASE_PLAYS_TABLE", "plays")
+    schema = os.getenv("SUPABASE_SCHEMA", "raw")
     raw_table = os.getenv("SUPABASE_RAW_TABLE", "raw_history")
     return SupabaseConfig(
         database_url=database_url,
         schema=schema,
-        plays_table=plays_table,
         raw_table=raw_table,
     )
-
-
-def _build_plays_dataframe(response: dict) -> pd.DataFrame:
-    rows: List[dict] = []
-    for item in response.get("items", []):
-        track = item.get("track") or {}
-        album = track.get("album") or {}
-        artists = track.get("artists") or []
-        rows.append(
-            {
-                "played_at": item.get("played_at"),
-                "track_id": track.get("id"),
-                "track_name": track.get("name"),
-                "artist_names": ", ".join(artist.get("name", "") for artist in artists if artist.get("name")),
-                "album_name": album.get("name"),
-                "duration_ms": track.get("duration_ms"),
-                "explicit": track.get("explicit"),
-                "context_uri": (item.get("context") or {}).get("uri"),
-            }
-        )
-
-    columns = [
-        "played_at",
-        "track_id",
-        "track_name",
-        "artist_names",
-        "album_name",
-        "duration_ms",
-        "explicit",
-        "context_uri",
-    ]
-    df = pd.DataFrame(rows, columns=columns)
-    if df.empty:
-        return df
-    # Deduplicate by played_at to avoid duplicate upserts when Spotify returns overlapping windows.
-    df = df.dropna(subset=["played_at"]).drop_duplicates(subset=["played_at"], keep="last")
-    return df
-
-
-def _upsert_plays(cursor: psycopg.Cursor, config: SupabaseConfig, df: pd.DataFrame) -> None:
-    if df.empty:
-        return
-
-    columns = list(df.columns)
-    insert_sql = sql.SQL(
-        """
-        INSERT INTO {schema}.{table} ({columns})
-        VALUES ({placeholders})
-        ON CONFLICT (played_at) DO UPDATE SET
-            {updates}
-        """
-    ).format(
-        schema=sql.Identifier(config.schema),
-        table=sql.Identifier(config.plays_table),
-        columns=sql.SQL(", ").join(sql.Identifier(col) for col in columns),
-        placeholders=sql.SQL(", ").join(sql.Placeholder() for _ in columns),
-        updates=sql.SQL(", ").join(
-            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(col)) for col in columns if col != "played_at"
-        ),
-    )
-
-    records: Iterable[Tuple] = df.itertuples(index=False, name=None)
-    cursor.executemany(insert_sql, records)
 
 
 def _insert_raw_payload(cursor: psycopg.Cursor, config: SupabaseConfig, response: dict) -> None:
@@ -134,12 +65,9 @@ def save_response(response: dict) -> None:
     except Exception as exc:  # pragma: no cover
         raise SupabaseConfigError(f"Failed to load Supabase configuration: {exc}") from exc
 
-    plays_df = _build_plays_dataframe(response)
-
     try:
         with psycopg.connect(config.database_url, autocommit=False) as conn:
             with conn.cursor() as cur:
-                _upsert_plays(cur, config, plays_df)
                 _insert_raw_payload(cur, config, response)
             conn.commit()
     except SupabaseConfigError:
