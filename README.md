@@ -53,15 +53,15 @@ You can copy `example.env`, fill in both the Spotify and Supabase values, and re
 
 The dbt project lives in the `spotify_history/` directory. Models are split into:
 
-- `staging/stg_spotify__plays`: incremental view over the raw JSON snapshots (materialized in the `staging` schema).
-- `marts/fct_spotify__plays`: incremental fact table used for analysis (materialized in the `analytics` schema).
+- `staging/track_history`: incremental view over the raw JSON snapshots (materialized in the `staging` schema).
+- `marts/recent_tracks`: view with the 50 most recent plays ordered by most recent time (lives in the `analytics` schema).
 
 1. Change into the project: `cd spotify_history`
 2. Verify connectivity: `dbt debug`
-3. Run the models: `dbt run --select stg_spotify__plays fct_spotify__plays`
-4. Run tests: `dbt test --select stg_spotify__plays fct_spotify__plays`
+3. Run the models: `dbt run --select track_history recent_tracks`
+4. Run tests: `dbt test --select track_history recent_tracks`
 
-Both models are incremental and safe to rebuild; dbt keeps the latest record per `played_at`.
+`track_history` is incremental and deduplicates on `played_at`; `recent_tracks` is a lightweight view for the 50 most recent plays.
 For ad-hoc validation queries, see `docs/warehouse_validation.sql`.
 Freshness thresholds for the `raw_history` source live in `spotify_history/models/sources.yml` (defaults warn after 3 hours, error after 6). You can safely drop any historical schemas such as `public_staging` or `public_analytics` once the new convention is in place.
 
@@ -72,18 +72,94 @@ After a run, sanity-check the warehouse. Useful queries:
 ```sql
 -- confirm the latest play timestamp matches Spotify history
 select played_at, track_name, artist_names
-from analytics.fct_spotify__plays
+from analytics.recent_tracks
 order by played_at desc
 limit 10;
 
 -- watch for duplicate timestamps
 select played_at, count(*)
-from analytics.fct_spotify__plays
+from analytics.recent_tracks
 group by played_at
 having count(*) > 1;
 ```
 
 Keep notes of any issues or data quality checks alongside the queries you use.
+
+### Analytics views for the website
+
+dbt now publishes a handful of website-friendly views in the `analytics` schema:
+
+- `analytics.recent_tracks` – the 50 most recent plays sorted by `played_at`.
+- `analytics.top_tracks_calendar` – top 50 tracks per calendar month and year with minutes/hours/days listened.
+- `analytics.top_artists_calendar` – top 50 artist groupings per calendar month and year.
+- `analytics.top_tracks_rolling` – top 50 tracks for rolling windows (7/30/90/180/365 days and all-time).
+- `analytics.top_artists_rolling` – top 50 artist groupings for the same rolling windows.
+- `analytics.daily_listening_totals` – per-day play counts, distinct tracks, and time listened.
+- `analytics.listening_totals_windows` – summary totals (plays, unique tracks, minutes/hours/days) across the rolling windows.
+
+Each top-50 view includes the `rank` column so a frontend can order or filter without additional logic.
+
+### Granting read-only Supabase access
+
+Create a read-only role that can query only the website views (run these from psql or the Supabase SQL editor):
+
+```sql
+create role website_anon login password 'generate-a-strong-password';
+
+grant usage on schema analytics to website_anon;
+grant select on analytics.top_tracks_calendar to website_anon;
+grant select on analytics.top_artists_calendar to website_anon;
+grant select on analytics.top_tracks_rolling to website_anon;
+grant select on analytics.top_artists_rolling to website_anon;
+grant select on analytics.daily_listening_totals to website_anon;
+grant select on analytics.listening_totals_windows to website_anon;
+```
+
+Generate a Supabase anon key tied to that role (Project Settings → API → “Generate API key” selecting `website_anon`). Store it in your frontend `.env` as `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+
+### Querying the views from a frontend
+
+Example using the Supabase JavaScript client inside a Next.js Server Component or API route:
+
+```ts
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+const supabase = createClient(supabaseUrl, anonKey, {
+  auth: { persistSession: false }
+});
+
+export async function fetchTopTracksRolling(windowKey = '30d') {
+  const { data, error } = await supabase
+    .from('top_tracks_rolling')
+    .select('*')
+    .eq('window_key', windowKey)
+    .order('rank', { ascending: true })
+    .limit(50);
+
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchDailyListeningTotals(fromDate?: string) {
+  let query = supabase
+    .from('daily_listening_totals')
+    .select('*')
+    .order('play_date', { ascending: false });
+
+  if (fromDate) {
+    query = query.gte('play_date', fromDate);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+```
+
+Use these helpers to render charts (e.g. with Recharts or Chart.js) for top 50 lists and daily listening trends.
 
 ### Automating with GitHub Actions
 

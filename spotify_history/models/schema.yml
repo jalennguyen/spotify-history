@@ -1,14 +1,13 @@
 version: 2
 
 models:
-  - name: stg_spotify__plays
+  - name: track_history
     description: "Incremental staging model that flattens Spotify raw history JSON into one row per play."
     columns:
       - name: played_at
         description: "Timestamp when the play occurred."
         tests:
           - not_null
-          - unique
       - name: track_id
         description: "Spotify track identifier."
         tests:
@@ -28,8 +27,8 @@ models:
       - name: ingested_at
         description: "Timestamp when the raw payload snapshot was captured."
 
-  - name: fct_spotify__plays
-    description: "Fact table with cleaned plays ready for analytics."
+  - name: recent_tracks
+    description: "View of the 50 most recent plays ordered by play time."
     columns:
       - name: played_at
         description: "Timestamp when the play occurred."
@@ -57,3 +56,192 @@ models:
       - name: ingested_at
         description: "Timestamp when the raw payload snapshot was captured."
 
+  - name: top_tracks_calendar
+    description: "Top 50 tracks by calendar period (month/year) with aggregated listening time metrics."
+    columns:
+      - name: period_type
+        description: "Calendar grain of the aggregation (month or year)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['month', 'year']
+      - name: period_start
+        description: "Start timestamp of the calendar period."
+        tests:
+          - not_null
+      - name: period_label
+        description: "Human-readable label for the period (YYYY-MM or YYYY)."
+      - name: track_id
+        description: "Spotify track identifier."
+        tests:
+          - not_null
+      - name: track_name
+        description: "Track title."
+      - name: play_count
+        description: "Number of plays captured for the track during the period."
+        tests:
+          - not_null
+      - name: total_minutes
+        description: "Total minutes listened for the track during the period."
+      - name: total_hours
+        description: "Total hours listened for the track during the period."
+      - name: total_days
+        description: "Total days listened for the track during the period."
+      - name: last_played_at
+        description: "Timestamp of the most recent play in the period."
+      - name: rank
+        description: "Rank of the track within the calendar period (1 = most played)."
+        tests:
+          - not_null
+
+  - name: top_artists_calendar
+    description: "Top 50 artists by calendar month and year with aggregated listening metrics."
+    columns:
+      - name: period_type
+        description: "Calendar grain of the aggregation (month or year)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['month', 'year']
+      - name: period_start
+        description: "Start timestamp of the calendar period."
+        tests:
+          - not_null
+      - name: period_label
+        description: "Human-readable label for the period (YYYY-MM or YYYY)."
+      - name: artist_names
+        description: "Comma-separated list of artists."
+        tests:
+          - not_null
+      - name: play_count
+        description: "Number of plays for the artist grouping during the period."
+        tests:
+          - not_null
+      - name: total_minutes
+        description: "Total minutes listened for the artist grouping during the period."
+      - name: total_hours
+        description: "Total hours listened for the artist grouping during the period."
+      - name: total_days
+        description: "Total days listened for the artist grouping during the period."
+      - name: last_played_at
+        description: "Timestamp of the most recent play in the period."
+      - name: rank
+        description: "Rank of the artist within the calendar period (1 = most played)."
+        tests:
+          - not_null
+
+  - name: top_tracks_rolling
+    description: "Top 50 tracks across rolling listening windows."
+    columns:
+      - name: window_key
+        description: "Identifier for the rolling window (e.g. 7d, 30d, all_time)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['7d', '30d', '90d', '180d', '365d', 'all_time']
+      - name: window_label
+        description: "Human-readable label for the rolling window."
+      - name: track_id
+        description: "Spotify track identifier."
+        tests:
+          - not_null
+      - name: track_name
+        description: "Track title."
+      - name: play_count
+        description: "Number of plays captured within the rolling window."
+        tests:
+          - not_null
+      - name: total_minutes
+        description: "Total minutes listened within the rolling window."
+      - name: total_hours
+        description: "Total hours listened within the rolling window."
+      - name: total_days
+        description: "Total days listened within the rolling window."
+      - name: last_played_at
+        description: "Timestamp of the most recent play within the window."
+      - name: rank
+        description: "Rank of the track inside the rolling window (1 = most played)."
+        tests:
+          - not_null
+
+  - name: top_artists_rolling
+    description: "Top 50 artists across rolling listening windows."
+    columns:
+      - name: window_key
+        description: "Identifier for the rolling window (e.g. 7d, 30d, all_time)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['7d', '30d', '90d', '180d', '365d', 'all_time']
+      - name: window_label
+        description: "Human-readable label for the rolling window."
+      - name: artist_names
+        description: "Comma-separated list of artists."
+        tests:
+          - not_null
+      - name: play_count
+        description: "Number of plays captured within the rolling window."
+        tests:
+          - not_null
+      - name: total_minutes
+        description: "Total minutes listened within the rolling window."
+      - name: total_hours
+        description: "Total hours listened within the rolling window."
+      - name: total_days
+        description: "Total days listened within the rolling window."
+      - name: last_played_at
+        description: "Timestamp of the most recent play within the window."
+      - name: rank
+        description: "Rank of the artist inside the rolling window (1 = most played)."
+        tests:
+          - not_null
+
+  - name: daily_listening_totals
+    description: "Daily aggregates of listening activity including play counts and time spent."
+    columns:
+      - name: play_date
+        description: "UTC date of playback activity."
+        tests:
+          - not_null
+      - name: play_count
+        description: "Number of plays recorded on the date."
+        tests:
+          - not_null
+      - name: distinct_track_count
+        description: "Distinct tracks listened to on the date."
+      - name: total_minutes
+        description: "Total minutes listened on the date."
+      - name: total_hours
+        description: "Total hours listened on the date."
+      - name: total_days
+        description: "Total days listened on the date."
+      - name: total_duration_ms
+        description: "Raw duration sum in milliseconds."
+
+  - name: listening_totals_windows
+    description: "Aggregated listening totals (plays, distinct tracks, time) across common rolling windows."
+    columns:
+      - name: window_key
+        description: "Identifier for the rolling window (e.g. 7d, 30d, all_time)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['7d', '30d', '90d', '180d', '365d', 'all_time']
+      - name: window_label
+        description: "Human-readable label for the rolling window."
+      - name: play_count
+        description: "Number of plays within the window."
+        tests:
+          - not_null
+      - name: distinct_track_count
+        description: "Distinct tracks listened to within the window."
+      - name: total_minutes
+        description: "Total minutes listened within the window."
+      - name: total_hours
+        description: "Total hours listened within the window."
+      - name: total_days
+        description: "Total days listened within the window."
+      - name: first_played_at
+        description: "Oldest play captured by the window filter."
+      - name: last_played_at
+        description: "Most recent play captured by the window filter."
