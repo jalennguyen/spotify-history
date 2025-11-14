@@ -45,6 +45,12 @@ deduped as (
         track ->> 'name' as track_name,
         nullif(artist_names, '') as artist_names,
         track -> 'album' ->> 'name' as album_name,
+        (
+            select img ->> 'url'
+            from jsonb_array_elements(track -> 'album' -> 'images') as img
+            order by (img ->> 'height')::int desc nulls last
+            limit 1
+        ) as album_cover_url,
         nullif(track ->> 'duration_ms', '')::int as duration_ms,
         (track ->> 'explicit')::boolean as explicit,
         context ->> 'uri' as context_uri,
@@ -62,6 +68,7 @@ select
     track_name,
     artist_names,
     album_name,
+    album_cover_url,
     duration_ms,
     explicit,
     context_uri,

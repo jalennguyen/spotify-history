@@ -10,6 +10,16 @@ with plays as (
     where track_id is not null
 ),
 
+track_metadata as (
+    select distinct on (track_id)
+        track_id,
+        track_name,
+        album_cover_url
+    from {{ ref('track_history') }}
+    where track_id is not null
+    order by track_id, played_at desc
+),
+
 monthly as (
     select
         'month'::text as period_type,
@@ -44,18 +54,20 @@ combined as (
 
 ranked as (
     select
-        period_type,
-        period_start,
-        track_id,
-        track_name,
-        play_count,
-        total_duration_ms,
-        last_played_at,
+        c.period_type,
+        c.period_start,
+        c.track_id,
+        c.track_name,
+        c.play_count,
+        c.total_duration_ms,
+        c.last_played_at,
+        tm.album_cover_url,
         row_number() over (
-            partition by period_type, period_start
-            order by play_count desc, total_duration_ms desc, track_name
+            partition by c.period_type, c.period_start
+            order by c.play_count desc, c.total_duration_ms desc, c.track_name
         ) as rank
-    from combined
+    from combined c
+    left join track_metadata tm on c.track_id = tm.track_id
 )
 
 select
@@ -67,6 +79,7 @@ select
     end as period_label,
     track_id,
     track_name,
+    album_cover_url,
     play_count,
     total_duration_ms / 60000.0 as total_minutes,
     total_duration_ms / 3600000.0 as total_hours,

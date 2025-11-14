@@ -10,6 +10,16 @@ with plays as (
     where track_id is not null
 ),
 
+track_metadata as (
+    select distinct on (track_id)
+        track_id,
+        track_name,
+        album_cover_url
+    from {{ ref('track_history') }}
+    where track_id is not null
+    order by track_id, played_at desc
+),
+
 latest_play as (
     select coalesce(max(played_at), now()) as max_played_at from plays
 ),
@@ -56,18 +66,20 @@ aggregated as (
 
 ranked as (
     select
-        window_key,
-        window_label,
-        track_id,
-        track_name,
-        play_count,
-        total_duration_ms,
-        last_played_at,
+        a.window_key,
+        a.window_label,
+        a.track_id,
+        a.track_name,
+        a.play_count,
+        a.total_duration_ms,
+        a.last_played_at,
+        tm.album_cover_url,
         row_number() over (
-            partition by window_key
-            order by play_count desc, total_duration_ms desc, track_name
+            partition by a.window_key
+            order by a.play_count desc, a.total_duration_ms desc, a.track_name
         ) as rank
-    from aggregated
+    from aggregated a
+    left join track_metadata tm on a.track_id = tm.track_id
 )
 
 select
@@ -75,6 +87,7 @@ select
     window_label,
     track_id,
     track_name,
+    album_cover_url,
     play_count,
     total_duration_ms / 60000.0 as total_minutes,
     total_duration_ms / 3600000.0 as total_hours,

@@ -7,6 +7,7 @@ select
     track_name,
     artist_names,
     album_name,
+    album_cover_url,
     duration_ms,
     duration_ms / 60000.0 as duration_minutes,
     explicit,
