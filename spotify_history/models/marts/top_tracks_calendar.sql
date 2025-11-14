@@ -14,6 +14,7 @@ track_metadata as (
     select distinct on (track_id)
         track_id,
         track_name,
+        artist_names,
         album_cover_url
     from {{ ref('track_history') }}
     where track_id is not null
@@ -61,6 +62,7 @@ ranked as (
         c.play_count,
         c.total_duration_ms,
         c.last_played_at,
+        tm.artist_names,
         tm.album_cover_url,
         row_number() over (
             partition by c.period_type, c.period_start
@@ -79,6 +81,7 @@ select
     end as period_label,
     track_id,
     track_name,
+    artist_names,
     album_cover_url,
     play_count,
     total_duration_ms / 60000.0 as total_minutes,
