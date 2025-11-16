@@ -15,4 +15,10 @@ sources:
           error_after:
             count: 6
             period: hour
+  - name: spotify_staging
+    schema: staging
+    description: "Staging tables for processed data."
+    tables:
+      - name: artists
+        description: "Artist metadata fetched from Spotify API."
 

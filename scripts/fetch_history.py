@@ -121,7 +121,7 @@ def main() -> None:
             supabase_store.warn_missing_config()
         else:
             try:
-                supabase_store.save_response(response)
+                supabase_store.save_response(response, spotify_client=client)
                 supabase_success = True
             except supabase_store.SupabaseConfigError as exc:
                 sys.stderr.write(f"{exc}\n")
