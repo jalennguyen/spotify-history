@@ -9,15 +9,24 @@ with plays as (
     where coalesce(artist_names, '') <> ''
 ),
 
+-- Derive first credited artist for each play
+first_artist as (
+    select
+        played_at,
+        trim(split_part(artist_names, ',', 1)) as first_artist_name,
+        duration_ms
+    from plays
+),
+
 monthly as (
     select
         'month'::text as period_type,
         date_trunc('month', played_at) as period_start,
-        artist_names,
+        first_artist_name,
         count(*) as play_count,
         sum(duration_ms) as total_duration_ms,
         max(played_at) as last_played_at
-    from plays
+    from first_artist
     group by 1, 2, 3
 ),
 
@@ -25,11 +34,11 @@ yearly as (
     select
         'year'::text as period_type,
         date_trunc('year', played_at) as period_start,
-        artist_names,
+        first_artist_name,
         count(*) as play_count,
         sum(duration_ms) as total_duration_ms,
         max(played_at) as last_played_at
-    from plays
+    from first_artist
     group by 1, 2, 3
 ),
 
@@ -39,35 +48,22 @@ combined as (
     select * from yearly
 ),
 
--- Extract first artist name from comma-separated string for matching
-artist_metadata as (
+ranked as (
     select
         c.period_type,
         c.period_start,
-        c.artist_names,
+        c.first_artist_name as artist_name,
         c.play_count,
         c.total_duration_ms,
         c.last_played_at,
-        -- Get first artist name (before first comma)
-        split_part(c.artist_names, ',', 1) as first_artist_name
-    from combined c
-),
-
-ranked as (
-    select
-        am.period_type,
-        am.period_start,
-        am.artist_names,
-        am.play_count,
-        am.total_duration_ms,
-        am.last_played_at,
         art.image_url,
         row_number() over (
-            partition by am.period_type, am.period_start
-            order by am.play_count desc, am.total_duration_ms desc, am.artist_names
+            partition by c.period_type, c.period_start
+            order by c.play_count desc, c.total_duration_ms desc, c.first_artist_name
         ) as rank
-    from artist_metadata am
-    left join {{ source('spotify_staging', 'artists') }} art on trim(art.artist_name) = trim(am.first_artist_name)
+    from combined c
+    left join {{ source('spotify_staging', 'artists') }} art
+      on trim(art.artist_name) = c.first_artist_name
 )
 
 select
@@ -77,7 +73,7 @@ select
         when period_type = 'month' then to_char(period_start, 'YYYY-MM')
         else to_char(period_start, 'YYYY')
     end as period_label,
-    artist_names,
+    artist_name as artist_names,
     image_url,
     play_count,
     total_duration_ms / 60000.0 as total_minutes,
@@ -88,4 +84,3 @@ select
 from ranked
 where rank <= 50
 order by period_type, period_start desc, rank
-
