@@ -34,6 +34,7 @@ export type ListeningTotals = {
   window_label: string;
   play_count: number;
   distinct_track_count: number;
+  distinct_artist_count: number;
   total_minutes: number;
   total_hours: number;
   total_days: number;
@@ -276,5 +277,22 @@ export async function getTopArtistsRolling(
   }
 
   return data || [];
+}
+
+export async function getTotalArtistsAllTime(): Promise<number> {
+  const { data, error } = await analyticsSupabase
+    .from("listening_totals_windows")
+    .select("distinct_artist_count")
+    .eq("window_key", "all_time")
+    .single();
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch total artists: ${error.message}\n` +
+        "Make sure analytics schema is exposed in Supabase API settings."
+    );
+  }
+
+  return data?.distinct_artist_count || 0;
 }
 

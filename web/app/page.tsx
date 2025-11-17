@@ -5,6 +5,7 @@ import { useState } from "react";
 import { DailyMinutesChart } from "@/components/DailyMinutesChart";
 import { TotalMinutesCard } from "@/components/TotalMinutesCard";
 import { TotalSongsCard } from "@/components/TotalSongsCard";
+import { TotalArtistsCard } from "@/components/TotalArtistsCard";
 import { TopArtistsCard } from "@/components/TopArtistsCard";
 import { TopGenresCard } from "@/components/TopGenresCard";
 import { TopTracksCard } from "@/components/TopTracksCard";
@@ -30,14 +31,7 @@ export default function Home() {
         onToggle={handleToggleDailyMinutes}
       />
       <TotalSongsCard />
-      <Card>
-        <CardHeader>
-          <CardTitle>Block 3</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>Placeholder content</p>
-        </CardContent>
-      </Card>
+      <TotalArtistsCard />
       <Card>
         <CardHeader>
           <CardTitle>Block 4</CardTitle>
