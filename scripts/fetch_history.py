@@ -58,7 +58,16 @@ def create_spotify_client() -> spotipy.Spotify:
     return spotipy.Spotify(auth_manager=auth_manager)
 
 
-def fetch_recent_tracks(client: spotipy.Spotify, limit: int) -> dict:
+def fetch_recent_tracks(client: spotipy.Spotify, limit: int, after: int | None = None) -> dict:
+    """Fetch recently played tracks.
+    
+    Args:
+        client: Spotify client
+        limit: Number of tracks to fetch (1-50)
+        after: Unix timestamp in milliseconds. Only return tracks played after this time.
+    """
+    if after is not None:
+        return client.current_user_recently_played(limit=limit, after=after)
     return client.current_user_recently_played(limit=limit)
 
 
@@ -112,7 +121,19 @@ def main() -> None:
     limit = max(1, min(args.limit, 50))
 
     client = create_spotify_client()
-    response = fetch_recent_tracks(client, limit=limit)
+    
+    # Get the latest played_at timestamp if saving to Supabase
+    # This allows us to only fetch new tracks using the 'after' parameter
+    after_timestamp = None
+    if args.save_supabase and supabase_store.is_configured():
+        try:
+            config = supabase_store.load_config()
+            after_timestamp = supabase_store.get_latest_played_at_timestamp(config)
+        except Exception:
+            # If we can't get the timestamp, just fetch without it
+            pass
+    
+    response = fetch_recent_tracks(client, limit=limit, after=after_timestamp)
     tracks = response.get("items", [])
 
     if args.save_supabase:

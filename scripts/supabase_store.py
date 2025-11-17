@@ -93,6 +93,49 @@ def warn_missing_config() -> None:
     sys.stderr.write(message + "\n")
 
 
+def _get_latest_played_at(cursor: psycopg.Cursor, config: SupabaseConfig) -> int | None:
+    """Get the most recent 'after' cursor from the database in milliseconds.
+    
+    Uses Spotify's cursor from the response, which is already in the correct format.
+    Returns None if no data exists.
+    """
+    query_sql = sql.SQL(
+        """
+        SELECT payload->'cursors'->>'after' as latest_after_cursor
+        FROM {schema}.{table}
+        WHERE payload->'cursors'->>'after' IS NOT NULL
+        ORDER BY collected_at DESC
+        LIMIT 1
+        """
+    ).format(
+        schema=sql.Identifier(config.schema),
+        table=sql.Identifier(config.raw_table),
+    )
+    cursor.execute(query_sql)
+    row = cursor.fetchone()
+    if row and row[0]:
+        try:
+            # Cursor is already in Unix milliseconds, just convert to int
+            return int(row[0])
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
+def get_latest_played_at_timestamp(config: SupabaseConfig) -> int | None:
+    """Get the most recent 'after' cursor in milliseconds for use with Spotify API.
+    
+    Uses Spotify's cursor from the response payload, which is already in the correct format.
+    Returns None if no data exists or if there's an error.
+    """
+    try:
+        with psycopg.connect(config.database_url, autocommit=True) as conn:
+            with conn.cursor() as cur:
+                return _get_latest_played_at(cur, config)
+    except Exception:
+        return None
+
+
 def extract_artist_ids(response: dict) -> set[str]:
     """Extract unique artist IDs from Spotify API response.
     
@@ -222,7 +265,13 @@ def save_response(response: dict, spotify_client: "spotipy.Spotify | None" = Non
     """Persist the Spotify API response to Supabase/Postgres tables.
     
     If spotify_client is provided, will also fetch and store metadata for new artists.
+    Skips saving if there are no tracks in the response to avoid storing empty payloads.
     """
+    # Skip if no tracks to avoid saving empty payloads
+    items = response.get("items", [])
+    if not items:
+        return  # No new tracks, nothing to save
+    
     try:
         config = load_config()
     except SupabaseConfigError:
