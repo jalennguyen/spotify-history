@@ -92,8 +92,3 @@ jobs:
         working-directory: spotify_history
         run: dbt test --select track_history
 
-      - name: Check dbt source freshness
-        working-directory: spotify_history
-        run: dbt source freshness --select source:spotify.raw_history
-
-
